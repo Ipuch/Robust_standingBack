@@ -26,11 +26,10 @@ Phase 2: Preparation landing
 import matplotlib.pyplot as plt
 import numpy as np
 import pickle
+
 # import matplotlib.pyplot as plt
 from bioptim import (
-    ConstraintFcn,
     BiorbdModel,
-    Node,
     InterpolationType,
     OptimalControlProgram,
     ConstraintList,
@@ -47,9 +46,7 @@ from bioptim import (
     HolonomicConstraintsFcn,
     HolonomicBiorbdModel,
     PenaltyController,
-    PhaseTransitionFcn,
     QuadratureRule,
-    PenaltyOption,
     DynamicsFunctions,
 )
 
@@ -121,7 +118,7 @@ def save_results(sol, c3d_file_path):
         pickle.dump(data, file)
 
 
-def compute_all_states(sol, bio_model: BiorbdModelCustomHolonomic, index_holonomics_constraints:int):
+def compute_all_states(sol, bio_model: BiorbdModelCustomHolonomic, index_holonomics_constraints: int):
     """
     Compute all the states from the solution of the optimal control program
 
@@ -171,9 +168,19 @@ def compute_all_states(sol, bio_model: BiorbdModelCustomHolonomic, index_holonom
     )
 
     for i in range(n):
-        q_v_i = bio_model.compute_v_from_u_explicit_numeric(sol.states[index_holonomics_constraints]["q_u"][:, i]).toarray()
-        q[:, i] = bio_model.state_from_partition(sol.states[index_holonomics_constraints]["q_u"][:, i][:, np.newaxis], q_v_i).toarray().squeeze()
-        qdot[:, i] = bio_model.compute_qdot(q[:, i], sol.states[index_holonomics_constraints]["qdot_u"][:, i]).toarray().squeeze()
+        q_v_i = bio_model.compute_v_from_u_explicit_numeric(
+            sol.states[index_holonomics_constraints]["q_u"][:, i]
+        ).toarray()
+        q[:, i] = (
+            bio_model.state_from_partition(sol.states[index_holonomics_constraints]["q_u"][:, i][:, np.newaxis], q_v_i)
+            .toarray()
+            .squeeze()
+        )
+        qdot[:, i] = (
+            bio_model.compute_qdot(q[:, i], sol.states[index_holonomics_constraints]["qdot_u"][:, i])
+            .toarray()
+            .squeeze()
+        )
         qddot_u_i = (
             partitioned_forward_dynamics_func(
                 sol.states[index_holonomics_constraints]["q_u"][:, i],
@@ -198,7 +205,7 @@ def compute_all_states(sol, bio_model: BiorbdModelCustomHolonomic, index_holonom
     return q, qdot, qddot, lambdas
 
 
-def custom_minimize_q_udot(penalty: PenaltyOption, controller: PenaltyController):
+def custom_minimize_q_udot(penalty, controller: PenaltyController):
     """
     Minimize the states variables.
     By default this function is quadratic, meaning that it minimizes towards the target.
@@ -214,8 +221,8 @@ def custom_minimize_q_udot(penalty: PenaltyOption, controller: PenaltyController
 
     penalty.quadratic = True if penalty.quadratic is None else penalty.quadratic
     if (
-            penalty.integration_rule != QuadratureRule.APPROXIMATE_TRAPEZOIDAL
-            and penalty.integration_rule != QuadratureRule.TRAPEZOIDAL
+        penalty.integration_rule != QuadratureRule.APPROXIMATE_TRAPEZOIDAL
+        and penalty.integration_rule != QuadratureRule.TRAPEZOIDAL
     ):
         penalty.add_target_to_plot(controller=controller, combine_to="q_udot_states")
     penalty.multi_thread = True if penalty.multi_thread is None else penalty.multi_thread
@@ -223,8 +230,8 @@ def custom_minimize_q_udot(penalty: PenaltyOption, controller: PenaltyController
     # TODO: We should scale the target here!
     return controller.states["q_udot"].cx_start
 
-def custom_phase_transition_pre(
-        controllers: list[PenaltyController, PenaltyController]) -> MX:
+
+def custom_phase_transition_pre(controllers: list[PenaltyController, PenaltyController]) -> MX:
     """
     The constraint of the transition. The values from the end of the phase to the next are multiplied by coef to
     determine the transition. If coef=1, then this function mimics the PhaseTransitionFcn.CONTINUOUS
@@ -262,8 +269,7 @@ def custom_phase_transition_pre(
     return states_pre - states_post
 
 
-def custom_phase_transition_post(
-        controllers: list[PenaltyController, PenaltyController]) -> MX:
+def custom_phase_transition_post(controllers: list[PenaltyController, PenaltyController]) -> MX:
     """
     The constraint of the transition. The values from the end of the phase to the next are multiplied by coef to
     determine the transition. If coef=1, then this function mimics the PhaseTransitionFcn.CONTINUOUS
@@ -297,6 +303,8 @@ def custom_phase_transition_post(
     states_post = controllers[1].states.cx
 
     return states_pre - states_post
+
+
 def get_created_data_from_pickle(file: str):
     with open(file, "rb") as f:
         while True:
@@ -307,12 +315,15 @@ def get_created_data_from_pickle(file: str):
 
     return data_tmp
 
+
 # --- Parameters --- #
 movement = "Salto_close_loop"
 version = 19
 nb_phase = 3
 name_folder_model = "/home/mickael/Documents/Anais/Robust_standingBack/Model"
-pickle_sol_init = "/home/mickael/Documents/Anais/Robust_standingBack/holonomic_research/Salto_close_loop_with_pelvis_3phases_V17.pkl"
+pickle_sol_init = (
+    "/home/mickael/Documents/Anais/Robust_standingBack/holonomic_research/Salto_close_loop_with_pelvis_3phases_V17.pkl"
+)
 
 index_holonomics_constraints = 1
 independent_joint_index = [0, 1, 2, 5, 6, 7]
@@ -335,11 +346,15 @@ for i in range(len(sol["time"])):
 
 # --- Prepare ocp --- #
 
-def prepare_ocp(biorbd_model_path, phase_time, n_shooting, min_bound, max_bound) -> (HolonomicBiorbdModel, OptimalControlProgram):
-    bio_model = (BiorbdModel(biorbd_model_path[0]),
-                 BiorbdModelCustomHolonomic(biorbd_model_path[1]),
-                 BiorbdModel(biorbd_model_path[2]),
-                 )
+
+def prepare_ocp(
+    biorbd_model_path, phase_time, n_shooting, min_bound, max_bound
+) -> (HolonomicBiorbdModel, OptimalControlProgram):
+    bio_model = (
+        BiorbdModel(biorbd_model_path[0]),
+        BiorbdModelCustomHolonomic(biorbd_model_path[1]),
+        BiorbdModel(biorbd_model_path[2]),
+    )
 
     tau_min_total = [0, 0, 0, -325.531, -138, -981.1876, -735.3286, -343.9806]
     tau_max_total = [0, 0, 0, 325.531, 138, 981.1876, 735.3286, 343.9806]
@@ -359,7 +374,7 @@ def prepare_ocp(biorbd_model_path, phase_time, n_shooting, min_bound, max_bound)
     # Phase 0 (Flight phase):
     objective_functions.add(ObjectiveFcn.Mayer.MINIMIZE_TIME, weight=10, phase=0, min_bound=0.1, max_bound=0.3)
     objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="tau", weight=10, phase=0)
-    objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="tau", derivative=True,  weight=10, phase=0)
+    objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="tau", derivative=True, weight=10, phase=0)
 
     # Phase 1 (Tucked phase:
     objective_functions.add(ObjectiveFcn.Mayer.MINIMIZE_TIME, weight=10, phase=1, min_bound=0.1, max_bound=0.3)
@@ -406,7 +421,8 @@ def prepare_ocp(biorbd_model_path, phase_time, n_shooting, min_bound, max_bound)
     # Made up constraints
 
     bio_model[1].set_holonomic_configuration(
-        constraints_list=holonomic_constraints, independent_joint_index=[0, 1, 2, 5, 6, 7],
+        constraints_list=holonomic_constraints,
+        independent_joint_index=[0, 1, 2, 5, 6, 7],
         dependent_joint_index=[3, 4],
     )
 
@@ -458,8 +474,8 @@ def prepare_ocp(biorbd_model_path, phase_time, n_shooting, min_bound, max_bound)
     x_bounds[1]["q_u"].max[2, 0] = np.pi / 2
     x_bounds[1]["q_u"].min[2, 1] = np.pi / 8
     x_bounds[1]["q_u"].max[2, 1] = 2 * np.pi
-    x_bounds[1]["q_u"].min[2, 2] = 3/4 * np.pi
-    x_bounds[1]["q_u"].max[2, 2] = 3/2 * np.pi
+    x_bounds[1]["q_u"].min[2, 2] = 3 / 4 * np.pi
+    x_bounds[1]["q_u"].max[2, 2] = 3 / 2 * np.pi
     x_bounds[1]["qdot_u"].min[0, :] = -5
     x_bounds[1]["qdot_u"].max[0, :] = 5
     x_bounds[1]["qdot_u"].min[1, :] = -2
@@ -474,7 +490,7 @@ def prepare_ocp(biorbd_model_path, phase_time, n_shooting, min_bound, max_bound)
     x_bounds[2]["q"].max[0, :] = 1
     x_bounds[2]["q"].min[1, 1:] = 0
     x_bounds[2]["q"].max[1, 1:] = 2.5
-    x_bounds[2]["q"].min[2, :] = 3/4 * np.pi
+    x_bounds[2]["q"].min[2, :] = 3 / 4 * np.pi
     x_bounds[2]["q"].max[2, :] = 2 * np.pi + 0.5
     x_bounds[2]["qdot"].min[0, :] = -5
     x_bounds[2]["qdot"].max[0, :] = 5
@@ -504,12 +520,24 @@ def prepare_ocp(biorbd_model_path, phase_time, n_shooting, min_bound, max_bound)
 
     # Define control path constraint
     u_bounds = BoundsList()
-    u_bounds.add("tau", min_bound=[tau_min[3], tau_min[4], tau_min[5], tau_min[6], tau_min[7]],
-                 max_bound=[tau_max[3], tau_max[4], tau_max[5], tau_max[6], tau_max[7]], phase=0)
-    u_bounds.add("tau", min_bound=[tau_min[3], tau_min[4], tau_min[5], tau_min[6], tau_min[7]],
-                 max_bound=[tau_max[3], tau_max[4], tau_max[5], tau_max[6], tau_max[7]], phase=1)
-    u_bounds.add("tau", min_bound=[tau_min[3], tau_min[4], tau_min[5], tau_min[6], tau_min[7]],
-                 max_bound=[tau_max[3], tau_max[4], tau_max[5], tau_max[6], tau_max[7]], phase=2)
+    u_bounds.add(
+        "tau",
+        min_bound=[tau_min[3], tau_min[4], tau_min[5], tau_min[6], tau_min[7]],
+        max_bound=[tau_max[3], tau_max[4], tau_max[5], tau_max[6], tau_max[7]],
+        phase=0,
+    )
+    u_bounds.add(
+        "tau",
+        min_bound=[tau_min[3], tau_min[4], tau_min[5], tau_min[6], tau_min[7]],
+        max_bound=[tau_max[3], tau_max[4], tau_max[5], tau_max[6], tau_max[7]],
+        phase=1,
+    )
+    u_bounds.add(
+        "tau",
+        min_bound=[tau_min[3], tau_min[4], tau_min[5], tau_min[6], tau_min[7]],
+        max_bound=[tau_max[3], tau_max[4], tau_max[5], tau_max[6], tau_max[7]],
+        phase=2,
+    )
 
     u_init = InitialGuessList()
     # u_init.add("tau", [tau_init] * (bio_model[0].nb_tau - 3), phase=0)
@@ -519,41 +547,43 @@ def prepare_ocp(biorbd_model_path, phase_time, n_shooting, min_bound, max_bound)
     u_init.add("tau", sol["tau"][1][:, :-1], interpolation=InterpolationType.EACH_FRAME, phase=1)
     u_init.add("tau", sol["tau"][2][:, :-1], interpolation=InterpolationType.EACH_FRAME, phase=2)
 
-    return OptimalControlProgram(
-        bio_model=bio_model,
-        dynamics=dynamics,
-        n_shooting=n_shooting,
-        phase_time=phase_time,
-        x_init=x_init,
-        u_init=u_init,
-        x_bounds=x_bounds,
-        u_bounds=u_bounds,
-        objective_functions=objective_functions,
-        constraints=constraints,
-        n_threads=32,
-        assume_phase_dynamics=True,
-        phase_transitions=phase_transitions,
-        variable_mappings=dof_mapping,
-    ), bio_model
+    return (
+        OptimalControlProgram(
+            bio_model=bio_model,
+            dynamics=dynamics,
+            n_shooting=n_shooting,
+            phase_time=phase_time,
+            x_init=x_init,
+            u_init=u_init,
+            x_bounds=x_bounds,
+            u_bounds=u_bounds,
+            objective_functions=objective_functions,
+            constraints=constraints,
+            n_threads=32,
+            phase_transitions=phase_transitions,
+            variable_mappings=dof_mapping,
+        ),
+        bio_model,
+    )
 
 
 # --- Load model --- #
 def main():
     model_path = str(name_folder_model) + "/" + "Model2D_7Dof_0C_5M_CL_V2.bioMod"
     ocp, bio_model = prepare_ocp(
-        biorbd_model_path=(model_path,
-                           model_path,
-                           model_path),
+        biorbd_model_path=(model_path, model_path, model_path),
         # phase_time=(0.2, 0.3, 0.2),
         # n_shooting=(20, 30, 20),
-        phase_time=(phase_time_init[0],
-                    phase_time_init[1],
-                    phase_time_init[2],
-                    ),
-        n_shooting=(n_shooting_init[0],
-                    n_shooting_init[1],
-                    n_shooting_init[2],
-                    ),
+        phase_time=(
+            phase_time_init[0],
+            phase_time_init[1],
+            phase_time_init[2],
+        ),
+        n_shooting=(
+            n_shooting_init[0],
+            n_shooting_init[1],
+            n_shooting_init[2],
+        ),
         min_bound=50,
         max_bound=np.inf,
     )
@@ -569,24 +599,32 @@ def main():
     sol = ocp.solve(solver)
     sol.graphs()
 
-# --- Show results --- #
+    # --- Show results --- #
     save_results(sol, str(movement) + "_" + "with_pelvis" + "_" + str(nb_phase) + "phases_V" + str(version) + ".pkl")
     visualisation_closed_loop_3phases(bio_model, sol, model_path)
     sol.graphs(show_bounds=True)
 
     # Graph to compute forces during holonomic constraints body-body
-    q, qdot, qddot, lambdas = compute_all_states(sol, bio_model[1], index_holonomics_constraints=index_holonomics_constraints)
+    q, qdot, qddot, lambdas = compute_all_states(
+        sol, bio_model[1], index_holonomics_constraints=index_holonomics_constraints
+    )
 
-    plt.plot(sol.time[index_holonomics_constraints], lambdas[0, :],
-             label="y",
-             marker="o",
-             markersize=5,
-             markerfacecolor="blue")
-    plt.plot(sol.time[index_holonomics_constraints], lambdas[1, :],
-             label="z",
-             marker="o",
-             markersize=5,
-             markerfacecolor="orange")
+    plt.plot(
+        sol.time[index_holonomics_constraints],
+        lambdas[0, :],
+        label="y",
+        marker="o",
+        markersize=5,
+        markerfacecolor="blue",
+    )
+    plt.plot(
+        sol.time[index_holonomics_constraints],
+        lambdas[1, :],
+        label="z",
+        marker="o",
+        markersize=5,
+        markerfacecolor="orange",
+    )
     plt.xlabel("Time (s)")
     plt.ylabel("Lagrange multipliers (N)")
     plt.title("Lagrange multipliers of the holonomic constraint")
