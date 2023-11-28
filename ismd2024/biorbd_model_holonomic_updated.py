@@ -1,6 +1,13 @@
+from typing import Callable, Any
 import biorbd_casadi as biorbd
 import biorbd as biorbd_eigen
 import casadi as cas
+from biorbd_casadi import (
+    GeneralizedCoordinates,
+    GeneralizedVelocity,
+    GeneralizedTorque,
+    GeneralizedAcceleration,
+)
 from biorbd import marker_index, segment_index
 from casadi import MX, DM, vertcat, horzcat, Function, solve, inv_minor, inv, fmod, pi, transpose
 from bioptim import HolonomicBiorbdModel, ConfigureProblem, DynamicsFunctions

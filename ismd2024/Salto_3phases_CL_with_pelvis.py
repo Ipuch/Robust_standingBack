@@ -53,158 +53,11 @@ from bioptim import (
 from casadi import MX, vertcat, Function
 from holonomic_research.biorbd_model_holonomic_updated import BiorbdModelCustomHolonomic
 from visualisation import visualisation_closed_loop_3phases
+from utils import save_results, compute_all_states
+from save import get_created_data_from_pickle
 
 
 # --- Save results --- #
-def save_results(sol, c3d_file_path):
-    """
-    Solving the ocp
-    Parameters
-     ----------
-     sol: Solution
-        The solution to the ocp at the current pool
-    c3d_file_path: str
-        The path to the c3d file of the task
-    """
-
-    data = {}
-    q = []
-    qdot = []
-    states_all = []
-    tau = []
-
-    if len(sol.ns) == 1:
-        q = sol.states["q_u"]
-        qdot = sol.states["q_udot"]
-        # states_all = sol.states["all"]
-        tau = sol.controls["tau"]
-    else:
-        for i in range(len(sol.states)):
-            if i == 1:
-                q.append(sol.states[i]["q_u"])
-                qdot.append(sol.states[i]["qdot_u"])
-                # states_all.append(sol.states[i]["all"])
-                tau.append(sol.controls[i]["tau"])
-            else:
-                q.append(sol.states[i]["q"])
-                qdot.append(sol.states[i]["qdot"])
-                # states_all.append(sol.states[i]["all"])
-                tau.append(sol.controls[i]["tau"])
-
-    data["q"] = q
-    data["qdot"] = qdot
-    data["tau"] = tau
-    data["cost"] = sol.cost
-    data["iterations"] = sol.iterations
-    # data["detailed_cost"] = sol.detailed_cost
-    data["status"] = sol.status
-    data["real_time_to_optimize"] = sol.real_time_to_optimize
-    data["phase_time"] = sol.phase_time[1:12]
-    data["constraints"] = sol.constraints
-    data["controls"] = sol.controls
-    data["constraints_scaled"] = sol.controls_scaled
-    data["n_shooting"] = sol.ns
-    data["time"] = sol.time
-    data["lam_g"] = sol.lam_g
-    data["lam_p"] = sol.lam_p
-    data["lam_x"] = sol.lam_x
-
-    if sol.status == 1:
-        data["status"] = "Optimal Control Solution Found"
-    else:
-        data["status"] = "Restoration Failed !"
-
-    with open(f"{c3d_file_path}", "wb") as file:
-        pickle.dump(data, file)
-
-
-def compute_all_states(sol, bio_model: BiorbdModelCustomHolonomic, index_holonomics_constraints: int):
-    """
-    Compute all the states from the solution of the optimal control program
-
-    Parameters
-    ----------
-    bio_model: HolonomicBiorbdModel
-        The biorbd model
-    sol:
-        The solution of the optimal control program
-
-    Returns
-    -------
-
-    """
-    n = sol.states[index_holonomics_constraints]["q_u"].shape[1]
-    nb_root = bio_model.nb_root
-    q = np.zeros((bio_model.nb_q, n))
-    qdot = np.zeros((bio_model.nb_q, n))
-    qddot = np.zeros((bio_model.nb_q, n))
-    lambdas = np.zeros((bio_model.nb_dependent_joints, n))
-    tau = np.ones((bio_model.nb_tau, n))
-    tau_independent = [element - 3 for element in bio_model.independent_joint_index[3:]]
-    tau_dependent = [element - 3 for element in bio_model.dependent_joint_index]
-
-    for i, independent_joint_index in enumerate(bio_model.independent_joint_index[3:]):
-        tau[independent_joint_index] = sol.controls[index_holonomics_constraints]["tau"][tau_independent[i], :]
-    for i, dependent_joint_index in enumerate(bio_model.dependent_joint_index):
-        tau[dependent_joint_index] = sol.controls[index_holonomics_constraints]["tau"][tau_dependent[i], :]
-
-    # Partitioned forward dynamics
-    q_u_sym = MX.sym("q_u_sym", bio_model.nb_independent_joints, 1)
-    qdot_u_sym = MX.sym("qdot_u_sym", bio_model.nb_independent_joints, 1)
-    tau_sym = MX.sym("tau_sym", bio_model.nb_tau, 1)
-    partitioned_forward_dynamics_func = Function(
-        "partitioned_forward_dynamics",
-        [q_u_sym, qdot_u_sym, tau_sym],
-        [bio_model.partitioned_forward_dynamics(q_u_sym, qdot_u_sym, tau_sym)],
-    )
-    # Lagrangian multipliers
-    q_sym = MX.sym("q_sym", bio_model.nb_q, 1)
-    qdot_sym = MX.sym("qdot_sym", bio_model.nb_q, 1)
-    qddot_sym = MX.sym("qddot_sym", bio_model.nb_q, 1)
-    compute_lambdas_func = Function(
-        "compute_the_lagrangian_multipliers",
-        [q_sym, qdot_sym, qddot_sym, tau_sym],
-        [bio_model.compute_the_lagrangian_multipliers(q_sym, qdot_sym, qddot_sym, tau_sym)],
-    )
-
-    for i in range(n):
-        q_v_i = bio_model.compute_v_from_u_explicit_numeric(
-            sol.states[index_holonomics_constraints]["q_u"][:, i]
-        ).toarray()
-        q[:, i] = (
-            bio_model.state_from_partition(sol.states[index_holonomics_constraints]["q_u"][:, i][:, np.newaxis], q_v_i)
-            .toarray()
-            .squeeze()
-        )
-        qdot[:, i] = (
-            bio_model.compute_qdot(q[:, i], sol.states[index_holonomics_constraints]["qdot_u"][:, i])
-            .toarray()
-            .squeeze()
-        )
-        qddot_u_i = (
-            partitioned_forward_dynamics_func(
-                sol.states[index_holonomics_constraints]["q_u"][:, i],
-                sol.states[index_holonomics_constraints]["qdot_u"][:, i],
-                tau[:, i],
-            )
-            .toarray()
-            .squeeze()
-        )
-        qddot[:, i] = bio_model.compute_qddot(q[:, i], qdot[:, i], qddot_u_i).toarray().squeeze()
-        lambdas[:, i] = (
-            compute_lambdas_func(
-                q[:, i],
-                qdot[:, i],
-                qddot[:, i],
-                tau[:, i],
-            )
-            .toarray()
-            .squeeze()
-        )
-
-    return q, qdot, qddot, lambdas
-
-
 def custom_minimize_q_udot(penalty, controller: PenaltyController):
     """
     Minimize the states variables.
@@ -306,6 +159,11 @@ def custom_phase_transition_post(controllers: list[PenaltyController, PenaltyCon
 
 
 def get_created_data_from_pickle(file: str):
+
+    # where am i ?
+    import os
+    print(os.getcwd())
+
     with open(file, "rb") as f:
         while True:
             try:
@@ -320,9 +178,9 @@ def get_created_data_from_pickle(file: str):
 movement = "Salto_close_loop"
 version = 19
 nb_phase = 3
-name_folder_model = "/home/mickael/Documents/Anais/Robust_standingBack/Model"
+name_folder_model = "../model"
 pickle_sol_init = (
-    "/home/mickael/Documents/Anais/Robust_standingBack/holonomic_research/Salto_close_loop_with_pelvis_3phases_V17.pkl"
+    "Salto_CL_3phases_with_pelvis_V17.pkl"
 )
 
 index_holonomics_constraints = 1
@@ -345,11 +203,8 @@ for i in range(len(sol["time"])):
 
 
 # --- Prepare ocp --- #
+def prepare_ocp(biorbd_model_path, phase_time, n_shooting) -> (HolonomicBiorbdModel, OptimalControlProgram):
 
-
-def prepare_ocp(
-    biorbd_model_path, phase_time, n_shooting, min_bound, max_bound
-) -> (HolonomicBiorbdModel, OptimalControlProgram):
     bio_model = (
         BiorbdModel(biorbd_model_path[0]),
         BiorbdModelCustomHolonomic(biorbd_model_path[1]),
@@ -389,14 +244,15 @@ def prepare_ocp(
     # --- Dynamics ---#
     # Dynamics
     dynamics = DynamicsList()
-    dynamics.add(DynamicsFcn.TORQUE_DRIVEN, phase=0)
+    dynamics.add(DynamicsFcn.TORQUE_DRIVEN, phase=0, expand_dynamics = True)
     dynamics.add(
         bio_model[1].holonomic_torque_driven,
         dynamic_function=DynamicsFunctions.holonomic_torque_driven,
         mapping=variable_bimapping,
+        expand_dynamics=True,
     )
     # dynamics.add(DynamicsFcn.HOLONOMIC_TORQUE_DRIVEN, expand=False, phase=1)
-    dynamics.add(DynamicsFcn.TORQUE_DRIVEN, phase=2)
+    dynamics.add(DynamicsFcn.TORQUE_DRIVEN, phase=2, expand_dynamics=True)
 
     # Transition de phase
     phase_transitions = PhaseTransitionList()
@@ -570,44 +426,35 @@ def prepare_ocp(
 # --- Load model --- #
 def main():
     model_path = str(name_folder_model) + "/" + "Model2D_7Dof_0C_5M_CL_V2.bioMod"
+
     ocp, bio_model = prepare_ocp(
         biorbd_model_path=(model_path, model_path, model_path),
-        # phase_time=(0.2, 0.3, 0.2),
-        # n_shooting=(20, 30, 20),
-        phase_time=(
-            phase_time_init[0],
-            phase_time_init[1],
-            phase_time_init[2],
-        ),
-        n_shooting=(
-            n_shooting_init[0],
-            n_shooting_init[1],
-            n_shooting_init[2],
-        ),
-        min_bound=50,
-        max_bound=np.inf,
+        phase_time=(0.30000000999781434, 0.3000000099876983, 0.3000000099830904),
+        n_shooting=(20,30,20),
     )
 
     # ocp.add_plot_penalty()
     # --- Solve the program --- #
     ocp.print(to_console=True, to_graph=False)
-    solver = Solver.IPOPT(show_online_optim=False, show_options=dict(show_bounds=True), _linear_solver="MA57")
-    solver.set_maximum_iterations(10000)
+    # solver = Solver.IPOPT(show_online_optim=False, show_options=dict(show_bounds=True), _linear_solver="MA57")
+    solver = Solver.IPOPT(show_online_optim=False, show_options=dict(show_bounds=True))
+    solver.set_maximum_iterations(0)
     solver.set_bound_frac(1e-8)
     solver.set_bound_push(1e-8)
 
     sol = ocp.solve(solver)
-    sol.graphs()
+    # sol.graphs()
 
     # --- Show results --- #
     save_results(sol, str(movement) + "_" + "with_pelvis" + "_" + str(nb_phase) + "phases_V" + str(version) + ".pkl")
     visualisation_closed_loop_3phases(bio_model, sol, model_path)
-    sol.graphs(show_bounds=True)
 
     # Graph to compute forces during holonomic constraints body-body
     q, qdot, qddot, lambdas = compute_all_states(
         sol, bio_model[1], index_holonomics_constraints=index_holonomics_constraints
     )
+
+    save_results(sol, str(movement) + "_" + "with_pelvis" + "_" + str(nb_phase) + "phases_V" + str(version) + ".pkl", q_complete, qdot_complete, qddot_complete, lambdas_complete)
 
     plt.plot(
         sol.time[index_holonomics_constraints],
