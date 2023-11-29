@@ -25,9 +25,7 @@ Phase 2: Preparation landing
 # --- Import package --- #
 import matplotlib.pyplot as plt
 import numpy as np
-import pickle
 
-# import matplotlib.pyplot as plt
 from bioptim import (
     BiorbdModel,
     InterpolationType,
@@ -45,133 +43,14 @@ from bioptim import (
     HolonomicConstraintsList,
     HolonomicConstraintsFcn,
     HolonomicBiorbdModel,
-    PenaltyController,
-    QuadratureRule,
     DynamicsFunctions,
 )
 
-from casadi import MX, vertcat, Function
 from holonomic_research.biorbd_model_holonomic_updated import BiorbdModelCustomHolonomic
 from visualisation import visualisation_closed_loop_3phases
 from utils import save_results, compute_all_states
 from save import get_created_data_from_pickle
-
-
-# --- Save results --- #
-def custom_minimize_q_udot(penalty, controller: PenaltyController):
-    """
-    Minimize the states variables.
-    By default this function is quadratic, meaning that it minimizes towards the target.
-    Targets (default=np.zeros()) and indices (default=all_idx) can be specified.
-
-    Parameters
-    ----------
-    penalty: PenaltyOption
-        The actual penalty to declare
-    controller: PenaltyController
-        The penalty node elements
-    """
-
-    penalty.quadratic = True if penalty.quadratic is None else penalty.quadratic
-    if (
-        penalty.integration_rule != QuadratureRule.APPROXIMATE_TRAPEZOIDAL
-        and penalty.integration_rule != QuadratureRule.TRAPEZOIDAL
-    ):
-        penalty.add_target_to_plot(controller=controller, combine_to="q_udot_states")
-    penalty.multi_thread = True if penalty.multi_thread is None else penalty.multi_thread
-
-    # TODO: We should scale the target here!
-    return controller.states["q_udot"].cx_start
-
-
-def custom_phase_transition_pre(controllers: list[PenaltyController, PenaltyController]) -> MX:
-    """
-    The constraint of the transition. The values from the end of the phase to the next are multiplied by coef to
-    determine the transition. If coef=1, then this function mimics the PhaseTransitionFcn.CONTINUOUS
-
-    coef is a user defined extra variables and can be anything. It is to show how to pass variables from the
-    PhaseTransitionList to that function
-
-    Parameters
-    ----------
-    controllers: list[PenaltyController, PenaltyController]
-        The controller for all the nodes in the penalty
-
-    Returns
-    -------
-    The constraint such that: c(x) = 0
-    """
-
-    # Take the values of q of the BioMod without holonomics constraints
-    states_pre = controllers[0].states.cx
-
-    nb_independent = controllers[1].model.nb_independent_joints
-    u_post = controllers[1].states.cx[:nb_independent]
-    udot_post = controllers[1].states.cx[nb_independent:]
-
-    # Take the q of the indepente joint and calculate the q of dependent joint
-    v_post = controllers[1].model.compute_v_from_u_explicit_symbolic(u_post)
-    q_post = controllers[1].model.state_from_partition(u_post, v_post)
-
-    Bvu = controllers[1].model.coupling_matrix(q_post)
-    vdot_post = Bvu @ udot_post
-    qdot_post = controllers[1].model.state_from_partition(udot_post, vdot_post)
-
-    states_post = vertcat(q_post, qdot_post)
-
-    return states_pre - states_post
-
-
-def custom_phase_transition_post(controllers: list[PenaltyController, PenaltyController]) -> MX:
-    """
-    The constraint of the transition. The values from the end of the phase to the next are multiplied by coef to
-    determine the transition. If coef=1, then this function mimics the PhaseTransitionFcn.CONTINUOUS
-
-    coef is a user defined extra variables and can be anything. It is to show how to pass variables from the
-    PhaseTransitionList to that function
-
-    Parameters
-    ----------
-    controllers: list[PenaltyController, PenaltyController]
-        The controller for all the nodes in the penalty
-
-    Returns
-    -------
-    The constraint such that: c(x) = 0
-    """
-
-    # Take the values of q of the BioMod without holonomics constraints
-    nb_independent = controllers[0].model.nb_independent_joints
-    u_pre = controllers[0].states.cx[:nb_independent]
-    udot_pre = controllers[0].states.cx[nb_independent:]
-
-    # Take the q of the indepente joint and calculate the q of dependent joint
-    v_pre = controllers[0].model.compute_v_from_u_explicit_symbolic(u_pre)
-    q_pre = controllers[0].model.state_from_partition(u_pre, v_pre)
-    Bvu = controllers[0].model.coupling_matrix(q_pre)
-    vdot_pre = Bvu @ udot_pre
-    qdot_pre = controllers[0].model.state_from_partition(udot_pre, vdot_pre)
-
-    states_pre = vertcat(q_pre, qdot_pre)
-    states_post = controllers[1].states.cx
-
-    return states_pre - states_post
-
-
-def get_created_data_from_pickle(file: str):
-
-    # where am i ?
-    import os
-    print(os.getcwd())
-
-    with open(file, "rb") as f:
-        while True:
-            try:
-                data_tmp = pickle.load(f)
-            except:
-                break
-
-    return data_tmp
+from custom_transitions import custom_phase_transition_pre, custom_phase_transition_post
 
 
 # --- Parameters --- #
@@ -293,9 +172,6 @@ def prepare_ocp(biorbd_model_path, phase_time, n_shooting) -> (HolonomicBiorbdMo
 
     # --- Bounds ---#
     # Initialize x_bounds
-    n_q = bio_model[0].nb_q
-    n_qdot = n_q
-    n_independent = bio_model[1].nb_independent_joints
 
     # Phase 0: Flight phase
     x_bounds = BoundsList()
@@ -430,15 +306,15 @@ def main():
     ocp, bio_model = prepare_ocp(
         biorbd_model_path=(model_path, model_path, model_path),
         phase_time=(0.30000000999781434, 0.3000000099876983, 0.3000000099830904),
-        n_shooting=(20,30,20),
+        n_shooting=(20, 30, 20),
     )
 
     # ocp.add_plot_penalty()
     # --- Solve the program --- #
     ocp.print(to_console=True, to_graph=False)
-    # solver = Solver.IPOPT(show_online_optim=False, show_options=dict(show_bounds=True), _linear_solver="MA57")
-    solver = Solver.IPOPT(show_online_optim=False, show_options=dict(show_bounds=True))
-    solver.set_maximum_iterations(0)
+    solver = Solver.IPOPT(show_online_optim=False, show_options=dict(show_bounds=True), _linear_solver="MA57")
+
+    solver.set_maximum_iterations(3000)
     solver.set_bound_frac(1e-8)
     solver.set_bound_push(1e-8)
 
@@ -446,7 +322,6 @@ def main():
     # sol.graphs()
 
     # --- Show results --- #
-    save_results(sol, str(movement) + "_" + "with_pelvis" + "_" + str(nb_phase) + "phases_V" + str(version) + ".pkl")
     visualisation_closed_loop_3phases(bio_model, sol, model_path)
 
     # Graph to compute forces during holonomic constraints body-body
@@ -454,7 +329,14 @@ def main():
         sol, bio_model[1], index_holonomics_constraints=index_holonomics_constraints
     )
 
-    save_results(sol, str(movement) + "_" + "with_pelvis" + "_" + str(nb_phase) + "phases_V" + str(version) + ".pkl", q_complete, qdot_complete, qddot_complete, lambdas_complete)
+    save_results(
+        sol,
+        str(movement) + "_" + "with_pelvis" + "_" + str(nb_phase) + "phases_V" + str(version) + ".pkl",
+        q_complete=q,
+        qdot_complete=qdot,
+        qddot_complete=qddot,
+        lambdas_complete=lambdas,
+    )
 
     plt.plot(
         sol.time[index_holonomics_constraints],

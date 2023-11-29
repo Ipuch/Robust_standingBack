@@ -1,5 +1,9 @@
+from casadi import MX, Function
 import pickle
+import numpy as np
+
 from holonomic_research.biorbd_model_holonomic_updated import BiorbdModelCustomHolonomic
+
 
 def save_results(sol, c3d_file_path, q_complete, qdot_complete, qddot_complete, lambdas_complete):
     """
