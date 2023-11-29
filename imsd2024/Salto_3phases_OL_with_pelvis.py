@@ -299,10 +299,16 @@ def main():
     sol = ocp.solve(solver)
 
     # --- Show results --- #
-    save_results(sol, str(movement) + "_" + "with_pelvis" + "_" + str(nb_phase) + "phases_V" + str(version) + ".pkl")
+    save_results(
+        sol,
+        str(movement) + "_" + "with_pelvis" + "_" + str(nb_phase) + "phases_V" + str(version) + ".pkl",
+        None,
+        None,
+        None,
+        None,
+    )
     # visualisation_closed_loop_3phases(bio_model, sol, model_path)
     sol.graphs(show_bounds=True)
-
     # plt.show()
 
 

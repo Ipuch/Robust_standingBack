@@ -34,16 +34,17 @@ def save_results(sol, c3d_file_path, q_complete, qdot_complete, qddot_complete, 
         tau = sol.controls["tau"]
     else:
         for i in range(len(sol.states)):
-            if i == 1:
+            if "q_u" in sol.states[i].keys():
                 q.append(sol.states[i]["q_u"])
-                qdot.append(sol.states[i]["qdot_u"])
-                # states_all.append(sol.states[i]["all"])
-                tau.append(sol.controls[i]["tau"])
             else:
                 q.append(sol.states[i]["q"])
+
+            if "qdot_u" in sol.states[i].keys():
+                qdot.append(sol.states[i]["qdot_u"])
+            else:
                 qdot.append(sol.states[i]["qdot"])
-                # states_all.append(sol.states[i]["all"])
-                tau.append(sol.controls[i]["tau"])
+
+            tau.append(sol.controls[i]["tau"])
 
     data["q"] = q
     data["qdot"] = qdot
