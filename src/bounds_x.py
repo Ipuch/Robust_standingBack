@@ -93,6 +93,6 @@ def add_x_bounds(bio_models) -> BoundsList:
     q_bounds[4].min[4, -1] = 0  # no hyper extension of elbow
     q_bounds[4].max[5, -1] = 2.9
     q_bounds[4].min[5, -1] = 0
-    q_bounds[4].min[6, -1] = 0  # no hyper extension of knee
+    q_bounds[4].max[6, -1] = 0  # no hyper extension of knee
 
     return q_bounds, qdot_bounds
