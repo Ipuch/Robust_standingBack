@@ -38,8 +38,8 @@ def add_constraints(constraints) -> ConstraintList:
         ConstraintFcn.TRACK_MARKERS,
         marker_index="Foot_Toe_marker",
         axes=Axis.Y,
-        max_bound=0.1,
-        min_bound=-0.1,
+        max_bound=0,
+        min_bound=0,
         node=Node.START,
         phase=0,
     )
@@ -128,8 +128,8 @@ def add_constraints(constraints) -> ConstraintList:
         ConstraintFcn.TRACK_MARKERS,
         marker_index="Foot_Toe_marker",
         axes=Axis.Y,
-        max_bound=0.1,
-        min_bound=-0.1,
+        max_bound=0,
+        min_bound=-0.5,
         node=Node.END,
         phase=4,
     )
