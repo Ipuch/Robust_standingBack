@@ -6,6 +6,7 @@ This script is used to solve the somersault problem with 5 phases and a pelvis l
 
 # --- Import package --- #
 import numpy as np
+from scipy.interpolate import interp1d
 from bioptim import (
     BiorbdModel,
     InterpolationType,
@@ -40,6 +41,31 @@ from src.actuator_constants import ACTUATORS, initialize_tau
 from src.multistart import prepare_multi_start
 from src.phase_transitions import custom_takeoff, continuity_only_q_and_qdot
 from src.objectives import WEIGHTS
+
+
+def interpolate_array(input_array, target_size):
+  """
+  Interpolates a 2D arrayto (8, target_size).
+
+  Args:
+      input_array:
+      target_size: The desired width of the output array.
+
+  Returns:
+      A NumPy array of shape (8, target_size) with interpolated values.
+      Returns None if the input array's shape is not (8,21)
+  """
+
+  original_x = np.linspace(0, 1, input_array.shape[1]) # 21 points evenly spaced between 0 and 1
+  new_x = np.linspace(0, 1, target_size) # target_size points evenly spaced between 0 and 1
+
+  interpolated_array = np.empty((input_array.shape[0], target_size)) # Pre-allocate array to store output
+
+  for i in range(input_array.shape[0]):  # Iterate over each row
+      interp_func = interp1d(original_x, input_array[i], kind='linear', fill_value="extrapolate") # Create an interpolation function for the current row
+      interpolated_array[i] = interp_func(new_x) # Interpolate the current row
+
+  return interpolated_array
 
 
 # --- Prepare ocp --- #
@@ -117,8 +143,10 @@ def prepare_ocp(biorbd_model_path, phase_time, n_shooting, WITH_MULTI_START, see
     sol_salto = get_created_data_from_pickle(JUMP_INIT_PATH)
     x_init = InitialGuessList()
     # Initial guess from Jump
-    x_init.add("q", sol_salto["q"][0], interpolation=InterpolationType.EACH_FRAME, phase=0)
-    x_init.add("qdot", sol_salto["qdot"][0], interpolation=InterpolationType.EACH_FRAME, phase=0)
+
+    x_init.add("q", interpolate_array(sol_salto["q"][0],n_shooting[0]+1), interpolation=InterpolationType.EACH_FRAME, phase=0)
+    x_init.add("qdot", interpolate_array(sol_salto["qdot"][0],n_shooting[0]+1), interpolation=InterpolationType.EACH_FRAME, phase=0)
+
     x_init.add("q", sol_salto["q"][1], interpolation=InterpolationType.EACH_FRAME, phase=1)
     x_init.add("qdot", sol_salto["qdot"][1], interpolation=InterpolationType.EACH_FRAME, phase=1)
     x_init.add("q", np.array([POSE_TUCKING_START, POSE_TUCKING_END]).T, interpolation=InterpolationType.LINEAR, phase=2)
@@ -131,20 +159,23 @@ def prepare_ocp(biorbd_model_path, phase_time, n_shooting, WITH_MULTI_START, see
     # Tau initial guess
     x_init.add(
         "tau",
-        np.hstack((sol_salto["tau"][0], np.zeros((5, 1)))),
+        interpolate_array(np.hstack((sol_salto["tau"][0], np.zeros((5, 1)))), n_shooting[0] + 1),
         interpolation=InterpolationType.EACH_FRAME,
         phase=0,
     )
     x_init.add(
         "tau",
-        np.hstack((sol_salto["tau"][1], np.zeros((5, 1)))),
+        interpolate_array(np.hstack((sol_salto["tau"][1], np.zeros((5, 1)))), n_shooting[1] + 1),
         interpolation=InterpolationType.EACH_FRAME,
         phase=1,
     )
     x_init.add("tau", [tau_init] * (bio_model[0].nb_tau - 3), phase=2)
     x_init.add("tau", [tau_init] * (bio_model[0].nb_tau - 3), phase=3)
     x_init.add(
-        "tau", np.hstack((sol_salto["tau"][3], np.zeros((5, 1)))), interpolation=InterpolationType.EACH_FRAME, phase=4
+        "tau",
+        interpolate_array(np.hstack((sol_salto["tau"][3], np.zeros((5, 1)))), n_shooting[4] + 1),
+        interpolation=InterpolationType.EACH_FRAME,
+        phase=4
     )
 
     # Define control path constraint
@@ -191,7 +222,7 @@ def prepare_ocp(biorbd_model_path, phase_time, n_shooting, WITH_MULTI_START, see
 def main():
     # --- Parameters --- #
     movement = "Salto"
-    version = "Pierre_taudot2_FREE_force_constrained_50N"
+    version = "after_submission_ntc"
 
     WITH_MULTI_START = True
     save_folder = f"../results/{str(movement)}_V{version}"
@@ -237,7 +268,7 @@ def main():
 
         # --- Save results --- #
         sol.graphs(show_bounds=True, save_name=str(movement) + "_V" + version)
-        sol.animate()
+        # sol.animate()
 
         combinatorial_parameters = [biorbd_model_path, phase_time, n_shooting, WITH_MULTI_START, "no_seed"]
         save_results_taudot(sol, *combinatorial_parameters, save_folder=save_folder)

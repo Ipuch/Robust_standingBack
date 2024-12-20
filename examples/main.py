@@ -72,6 +72,6 @@ def main(prepare_ocp: Callable, save_results: Callable, multi_start: bool = Fals
 
 
 if "__main__" == __name__:
-    main(prepare_ocp_ntc, save_results_taudot, multi_start=True, condition="ntc")
-    main(prepare_ocp_with_ktc, save_results_taudot, multi_start=True, condition="ktc")
-    main(prepare_ocp_with_htc, save_results_holonomic_taudot, multi_start=True, condition="htc")
+    main(prepare_ocp_ntc, save_results_taudot, multi_start=False, condition="ntc")
+    # main(prepare_ocp_with_ktc, save_results_taudot, multi_start=True, condition="ktc")
+    # main(prepare_ocp_with_htc, save_results_holonomic_taudot, multi_start=True, condition="htc")
