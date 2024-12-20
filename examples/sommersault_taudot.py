@@ -91,8 +91,8 @@ def prepare_ocp(biorbd_model_path, phase_time, n_shooting, WITH_MULTI_START, see
     # Transition de phase
     phase_transitions = PhaseTransitionList()
     phase_transitions.add(custom_takeoff, phase_pre_idx=0)
-    phase_transitions.add(continuity_only_q_and_qdot, phase_pre_idx=1)
-    phase_transitions.add(continuity_only_q_and_qdot, phase_pre_idx=2)
+    # phase_transitions.add(continuity_only_q_and_qdot, phase_pre_idx=1)
+    # phase_transitions.add(continuity_only_q_and_qdot, phase_pre_idx=2)
     phase_transitions.add(PhaseTransitionFcn.IMPACT, phase_pre_idx=3)
 
     # --- Constraints ---#
