@@ -25,8 +25,8 @@ def main(prepare_ocp: Callable, save_results: Callable, multi_start: bool = Fals
     save_folder = f"../results/{str(movement)}_V{version}/{condition}"
 
     biorbd_model_path = (PATH_MODEL_1_CONTACT, PATH_MODEL, PATH_MODEL, PATH_MODEL, PATH_MODEL_1_CONTACT)
-    phase_time = (0.2, 0.2, 0.3, 0.3, 0.3)
-    n_shooting = (20, 20, 30, 30, 30)
+    phase_time = (0.4, 0.2, 0.3, 0.3, 1)
+    n_shooting = (40, 20, 30, 30, 40)
 
     # Solver options
     solver = Solver.IPOPT(show_options=dict(show_bounds=True), _linear_solver="MA57", show_online_optim=False)
