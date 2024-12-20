@@ -102,10 +102,10 @@ def custom_takeoff(controllers: list[PenaltyController, PenaltyController]):
         cx_end = vertcat(cx_end, pre.states[key].mapping.to_second.map(pre.states[key].cx))
         cx_start = vertcat(cx_start, post.states[key].mapping.to_second.map(post.states[key].cx))
         post_mx = post.states[key].mx
-        if key == "tau":
-            continuity = 0  # skip tau continuity
-        else:
-            continuity = post.states[key].mapping.to_first.map(pre.states[key].mx - post_mx)
+        # if key == "tau":
+        #     continuity = 0  # skip tau continuity
+        # else:
+        continuity = post.states[key].mapping.to_first.map(pre.states[key].mx - post_mx)
 
         val = vertcat(val, continuity)
 
