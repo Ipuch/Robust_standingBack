@@ -39,6 +39,7 @@ from src.constraints import add_constraints
 from src.actuator_constants import ACTUATORS, initialize_tau
 from src.multistart import prepare_multi_start
 from src.phase_transitions import custom_takeoff, continuity_only_q_and_qdot
+from src.objectives import WEIGHTS
 
 
 # --- Prepare ocp --- #
@@ -72,7 +73,7 @@ def prepare_ocp(biorbd_model_path, phase_time, n_shooting, WITH_MULTI_START, see
         custom_type=ObjectiveFcn.Lagrange,
         actuators=actuators,
         quadratic=True,
-        weight=0.01,
+        weight=WEIGHTS["2_TORQUE_RATIO"],
         phase=2,
     )
 
