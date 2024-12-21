@@ -14,15 +14,14 @@ colors = colors + colors + colors  # duplicate the colors to have enough for all
 
 # Charger les données
 phase_reruns = []
-for i in range(0, 19):
-    data = pickle.load(open(folder + f"/sol_{i}_CVG.pkl", "rb"))
-    time = np.concatenate([np.array(time) for time in data["time"]], axis=0).squeeze()
-    q = np.concatenate([np.array(q) for q in data["q"]], axis=1)
+data = pickle.load(open(folder + f"/{filename}", "rb"))
+time = np.concatenate([np.array(time) for time in data["time"]], axis=0).squeeze()
+q = np.concatenate([np.array(q) for q in data["q"]], axis=1)
 
-    phase_reruns.append(PhaseRerun(t_span=time, window=f"simulation_{i}"))
-    m = BiorbdModel(model_path)
-    m.options.mesh_color = colors[i - 1]
-    phase_reruns[-1].add_animated_model(m, q)
+phase_reruns.append(PhaseRerun(t_span=time, window=f"simulation"))
+m = BiorbdModel(model_path)
+m.options.mesh_color = colors[0]
+phase_reruns[-1].add_animated_model(m, q)
 
 mrr2 = MultiFrameRatePhaseRerun(phase_reruns=phase_reruns)
 mrr2.rerun("all_multistart")

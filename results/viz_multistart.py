@@ -1,10 +1,12 @@
+import os
+
 import numpy as np
 import pickle
 from plotly.colors import DEFAULT_PLOTLY_COLORS
 from pyorerun import PhaseRerun, BiorbdModel
 from pyorerun.multi_frame_rate_phase_rerun import MultiFrameRatePhaseRerun
 
-folder = "with_noise/HTC"
+folder = "backflip_Vpost_submission/ntc"
 model_path = "../models/Model2D_7Dof_2C_5M_CL_V3.bioMod"
 
 # remove "rgb(" and ")" and split by ","
@@ -14,15 +16,21 @@ colors = colors + colors + colors  # duplicate the colors to have enough for all
 
 # Charger les données
 phase_reruns = []
-for i in range(0, 19):
-    data = pickle.load(open(folder + f"/sol_{i}_CVG.pkl", "rb"))
+for i in range(0, 13):
+    suffix = "CVG"
+    if os.path.isfile(folder + f"/sol_{i}_CVG.pkl") is False:
+        suffix = "DVG"
+    data = pickle.load(open(folder + f"/sol_{i}_{suffix}.pkl", "rb"))
     time = np.concatenate([np.array(time) for time in data["time"]], axis=0).squeeze()
     q = np.concatenate([np.array(q) for q in data["q"]], axis=1)
 
     phase_reruns.append(PhaseRerun(t_span=time, window=f"simulation_{i}"))
     m = BiorbdModel(model_path)
-    m.options.mesh_color = colors[i - 1]
+    if suffix == "DVG":
+        m.options.mesh_color = (0, 0, 0)
+    else:
+        m.options.mesh_color = colors[i - 1]
     phase_reruns[-1].add_animated_model(m, q)
 
 mrr2 = MultiFrameRatePhaseRerun(phase_reruns=phase_reruns)
-mrr2.rerun("all_multistart")
+mrr2.rerun_by_frame("all_multistart")

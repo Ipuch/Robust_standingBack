@@ -34,6 +34,12 @@ def custom_phase_transition_pre(controllers: list[PenaltyController, PenaltyCont
 
     states_post = vertcat(q_post, qdot_post)
 
+    tau_pre = controllers[0].states["tau"].cx
+    tau_post = controllers[1].states["tau"].cx
+
+    states_pre = vertcat(states_pre, tau_pre)
+    states_post = vertcat(states_post, tau_post)
+
     return states_pre - states_post
 
 
@@ -65,6 +71,12 @@ def custom_phase_transition_post(controllers: list[PenaltyController, PenaltyCon
 
     states_pre = vertcat(q_pre, qdot_pre)
     states_post = vertcat(controllers[1].states["q"].cx, controllers[1].states["qdot"].cx)
+
+    tau_pre = controllers[0].states["tau"].cx
+    tau_post = controllers[1].states["tau"].cx
+
+    states_pre = vertcat(states_pre, tau_pre)
+    states_post = vertcat(states_post, tau_post)
 
     return states_pre - states_post
 

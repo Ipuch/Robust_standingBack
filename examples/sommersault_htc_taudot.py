@@ -47,6 +47,7 @@ from src.multistart import prepare_multi_start
 from src.phase_transitions import custom_takeoff, custom_phase_transition_pre, custom_phase_transition_post
 from src.save_load_helpers import get_created_data_from_pickle
 from src.save_results import save_results_holonomic_taudot
+from src.initial_guess_utils import interpolate_array
 
 
 # --- Prepare ocp --- #
@@ -167,8 +168,11 @@ def prepare_ocp(biorbd_model_path: tuple, phase_time: tuple, n_shooting: tuple, 
     sol_salto = get_created_data_from_pickle(JUMP_INIT_PATH)
     x_init = InitialGuessList()
     # Initial guess from Jump
-    x_init.add("q", sol_salto["q"][0], interpolation=InterpolationType.EACH_FRAME, phase=0)
-    x_init.add("qdot", sol_salto["qdot"][0], interpolation=InterpolationType.EACH_FRAME, phase=0)
+    x_init.add("q", interpolate_array(sol_salto["q"][0], n_shooting[0] + 1), interpolation=InterpolationType.EACH_FRAME,
+               phase=0)
+    x_init.add("qdot", interpolate_array(sol_salto["qdot"][0], n_shooting[0] + 1),
+               interpolation=InterpolationType.EACH_FRAME, phase=0)
+
     x_init.add("q", sol_salto["q"][1], interpolation=InterpolationType.EACH_FRAME, phase=1)
     x_init.add("qdot", sol_salto["qdot"][1], interpolation=InterpolationType.EACH_FRAME, phase=1)
 
@@ -186,20 +190,23 @@ def prepare_ocp(biorbd_model_path: tuple, phase_time: tuple, n_shooting: tuple, 
     # Tau initial guess
     x_init.add(
         "tau",
-        np.hstack((sol_salto["tau"][0], np.zeros((5, 1)))),
+        interpolate_array(np.hstack((sol_salto["tau"][0], np.zeros((5, 1)))), n_shooting[0] + 1),
         interpolation=InterpolationType.EACH_FRAME,
         phase=0,
     )
     x_init.add(
         "tau",
-        np.hstack((sol_salto["tau"][1], np.zeros((5, 1)))),
+        interpolate_array(np.hstack((sol_salto["tau"][1], np.zeros((5, 1)))), n_shooting[1] + 1),
         interpolation=InterpolationType.EACH_FRAME,
         phase=1,
     )
     x_init.add("tau", [tau_init] * (bio_model[0].nb_tau - 3), phase=2)
     x_init.add("tau", [tau_init] * (bio_model[0].nb_tau - 3), phase=3)
     x_init.add(
-        "tau", np.hstack((sol_salto["tau"][3], np.zeros((5, 1)))), interpolation=InterpolationType.EACH_FRAME, phase=4
+        "tau",
+        interpolate_array(np.hstack((sol_salto["tau"][3], np.zeros((5, 1)))), n_shooting[4] + 1),
+        interpolation=InterpolationType.EACH_FRAME,
+        phase=4,
     )
 
     # Define control path constraint
